@@ -4,6 +4,7 @@ from app import schemas
 
 def create_patient(db: Session, patient: schemas.PatientCreate):
     db_patient = models.Patient(
+        id=patient.id,
         name=patient.name,
         age=patient.age,
         gender=patient.gender,
