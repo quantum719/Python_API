@@ -37,3 +37,11 @@ def update_patient(db: Session, patient_id: int, patient_update: schemas.Patient
     db.commit()
     db.refresh(db_patient)
     return db_patient
+
+def delete_patient(db: Session, patient_id: int):
+    db_patient = get_patient(db, patient_id)
+    if db_patient is None:
+        return None
+    db.delete(db_patient)
+    db.commit()
+    return db_patient
