@@ -30,3 +30,7 @@ class PatientUpdate(BaseModel):
     blood_group: Optional[Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]] = None
     diagnosis: Optional[str] = None
     admission_date: Optional[date] = None
+    
+class UserLogin(BaseModel):
+    email: str
+    password: str

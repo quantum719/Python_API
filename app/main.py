@@ -1,10 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import Base, engine
-from app import models  # noqa: F401
-from app.routers import patients
+from app.database import Base, engine, SessionLocal
+from app import models
+from app.routers import patients, auth
 
 Base.metadata.create_all(bind=engine)
+
+def seed_users():
+    db = SessionLocal()
+    if db.query(models.User).count() == 0:
+        users = [
+            models.User(email="admin@hospital.com", password="admin123", name="Admin"),
+            models.User(email="doctor@hospital.com", password="doctor456", name="Dr. Smith"),
+            models.User(email="nurse@hospital.com", password="nurse789", name="Nurse Joy"),
+        ]
+        db.add_all(users)
+        db.commit()
+    db.close()
+
+seed_users()
 
 app = FastAPI(
     title="Patient Management API",
@@ -19,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(patients.router)
 
 @app.get("/")
