@@ -13,6 +13,7 @@ class Patient(Base):
     blood_group = Column(String(5), nullable=False)
     diagnosis = Column(String(255), nullable=False)
     admission_date = Column(Date, nullable=False)
+    status = Column(String, default="Admitted")
     
 class User(Base):
     __tablename__ = "users"

@@ -11,6 +11,7 @@ class PatientBase(BaseModel): #Base class to inherit from. PatientCreate and Pat
     blood_group: Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
     diagnosis: str
     admission_date: date
+    status: str = "Admitted"
 
 class PatientCreate(PatientBase): #Class used when client sends data. Inherits PatientBase.
     id: int
@@ -30,6 +31,7 @@ class PatientUpdate(BaseModel):
     blood_group: Optional[Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]] = None
     diagnosis: Optional[str] = None
     admission_date: Optional[date] = None
+    status: Optional[str] = "Admitted"
     
 class UserLogin(BaseModel):
     email: str

@@ -28,7 +28,7 @@ export default function Register() {
     if (res.ok) {
       const data = await res.json()
       localStorage.setItem("user", JSON.stringify(data))
-      navigate("/patients")
+        navigate("/dashboard")
     } else {
       const err = await res.json()
       setError(err.detail)
