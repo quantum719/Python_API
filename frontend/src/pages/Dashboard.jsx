@@ -3,18 +3,25 @@ import { useNavigate, Link } from "react-router-dom"
 import Highcharts from "highcharts"
 import HighchartsReact from "highcharts-react-official"
 
+Highcharts.setOptions({
+  chart: {
+    backgroundColor: "#ffffff",
+    style: { fontFamily: "'Segoe UI', sans-serif" }
+  }
+})
+
 const API = "https://patients-db-api.onrender.com"
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const user = JSON.parse(localStorage.getItem("user"))
-  const [patients, setPatients] = useState([])
+  const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${API}/patients/`)
+    fetch(`${API}/patients/stats`)
       .then(res => res.json())
-      .then(data => { setPatients(data); setLoading(false) })
+      .then(data => { setStats(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
@@ -23,46 +30,19 @@ export default function Dashboard() {
     navigate("/login")
   }
 
-  // ---- Stats ----
-  const total = patients.length
-  const statusCounts = patients.reduce((acc, p) => {
-    const status = p.status || "Admitted"
-    acc[status] = (acc[status] || 0) + 1
-    return acc
-  }, {})
-  const admitted = statusCounts["Admitted"] || 0
-  const underTreatment = statusCounts["Under Treatment"] || 0
-  const cured = statusCounts["Cured"] || 0
+  if (loading) return <div style={s.wrap}><p>Loading stats...</p></div>
+  if (!stats) return <div style={s.wrap}><p>Failed to load stats.</p></div>
 
-  // Admissions by month
-  const monthCounts = {}
-  patients.forEach(p => {
-    if (!p.admission_date) return
-    const month = p.admission_date.slice(0, 7)
-    monthCounts[month] = (monthCounts[month] || 0) + 1
-  })
-  const sortedMonths = Object.keys(monthCounts).sort()
-  const monthLabels = sortedMonths.map(m => {
-    const [y, mo] = m.split("-")
+  const admitted = stats.status_counts["Admitted"] || 0
+  const underTreatment = stats.status_counts["Under Treatment"] || 0
+  const cured = stats.status_counts["Cured"] || 0
+
+  const monthLabels = stats.admissions_by_month.map(m => {
+    const [y, mo] = m.month.split("-")
     return new Date(Number(y), Number(mo) - 1).toLocaleString("default", { month: "short", year: "numeric" })
   })
-  const monthData = sortedMonths.map(m => monthCounts[m])
+  const monthData = stats.admissions_by_month.map(m => m.count)
 
-  // Blood group distribution
-  const bgCounts = {}
-  patients.forEach(p => {
-    if (!p.blood_group) return
-    bgCounts[p.blood_group] = (bgCounts[p.blood_group] || 0) + 1
-  })
-
-  // Gender distribution
-  const genderCounts = {}
-  patients.forEach(p => {
-    const g = p.gender || "Unknown"
-    genderCounts[g] = (genderCounts[g] || 0) + 1
-  })
-
-  // ---- Chart configs ----
   const admissionsChart = {
     chart: { type: "column", height: 300 },
     title: { text: "Admissions by Month" },
@@ -91,9 +71,9 @@ export default function Dashboard() {
   const bloodGroupChart = {
     chart: { type: "column", height: 300 },
     title: { text: "Blood Group Distribution" },
-    xAxis: { categories: Object.keys(bgCounts) },
+    xAxis: { categories: Object.keys(stats.blood_group_counts) },
     yAxis: { title: { text: "Patients" }, allowDecimals: false },
-    series: [{ name: "Patients", data: Object.values(bgCounts), color: "#dc3545" }],
+    series: [{ name: "Patients", data: Object.values(stats.blood_group_counts), color: "#dc3545" }],
     legend: { enabled: false },
     credits: { enabled: false }
   }
@@ -104,7 +84,7 @@ export default function Dashboard() {
     plotOptions: { pie: { dataLabels: { enabled: true, format: "{point.name}: {point.y}" } } },
     series: [{
       name: "Patients",
-      data: Object.entries(genderCounts).map(([name, y]) => ({ name, y }))
+      data: Object.entries(stats.gender_counts).map(([name, y]) => ({ name, y }))
     }],
     credits: { enabled: false }
   }
@@ -119,43 +99,39 @@ export default function Dashboard() {
         <button style={s.btnLogout} onClick={handleLogout}>Logout</button>
       </div>
 
-      {loading ? <p>Loading stats...</p> : (
-        <>
-          <div style={s.statsRow}>
-            <div style={s.statCard}>
-              <div style={s.statNumber}>{total}</div>
-              <div style={s.statLabel}>Total Patients</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={{ ...s.statNumber, color: "#0d6efd" }}>{admitted}</div>
-              <div style={s.statLabel}>Admitted</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={{ ...s.statNumber, color: "#997404" }}>{underTreatment}</div>
-              <div style={s.statLabel}>Under Treatment</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={{ ...s.statNumber, color: "#198754" }}>{cured}</div>
-              <div style={s.statLabel}>Cured</div>
-            </div>
-          </div>
+      <div style={s.statsRow}>
+        <div style={s.statCard}>
+          <div style={s.statNumber}>{stats.total}</div>
+          <div style={s.statLabel}>Total Patients</div>
+        </div>
+        <div style={s.statCard}>
+          <div style={{ ...s.statNumber, color: "#0d6efd" }}>{admitted}</div>
+          <div style={s.statLabel}>Admitted</div>
+        </div>
+        <div style={s.statCard}>
+          <div style={{ ...s.statNumber, color: "#997404" }}>{underTreatment}</div>
+          <div style={s.statLabel}>Under Treatment</div>
+        </div>
+        <div style={s.statCard}>
+          <div style={{ ...s.statNumber, color: "#198754" }}>{cured}</div>
+          <div style={s.statLabel}>Cured</div>
+        </div>
+      </div>
 
-          <div style={s.chartsGrid}>
-            <div style={s.chartCard}>
-              <HighchartsReact highcharts={Highcharts} options={admissionsChart} />
-            </div>
-            <div style={s.chartCard}>
-              <HighchartsReact highcharts={Highcharts} options={statusChart} />
-            </div>
-            <div style={s.chartCard}>
-              <HighchartsReact highcharts={Highcharts} options={bloodGroupChart} />
-            </div>
-            <div style={s.chartCard}>
-              <HighchartsReact highcharts={Highcharts} options={genderChart} />
-            </div>
-          </div>
-        </>
-      )}
+      <div style={s.chartsGrid}>
+        <div style={s.chartCard}>
+          <HighchartsReact highcharts={Highcharts} options={admissionsChart} />
+        </div>
+        <div style={s.chartCard}>
+          <HighchartsReact highcharts={Highcharts} options={statusChart} />
+        </div>
+        <div style={s.chartCard}>
+          <HighchartsReact highcharts={Highcharts} options={bloodGroupChart} />
+        </div>
+        <div style={s.chartCard}>
+          <HighchartsReact highcharts={Highcharts} options={genderChart} />
+        </div>
+      </div>
 
       <div style={s.grid}>
         <Link to="/patients" style={s.card}>

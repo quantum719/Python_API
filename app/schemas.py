@@ -41,3 +41,16 @@ class UserCreate(BaseModel):
     email: str
     password: str
     name: str
+    
+from typing import Dict, List  # add Dict if not already imported
+
+class MonthCount(BaseModel):
+    month: str
+    count: int
+
+class PatientStats(BaseModel):
+    total: int
+    status_counts: Dict[str, int]
+    blood_group_counts: Dict[str, int]
+    gender_counts: Dict[str, int]
+    admissions_by_month: List[MonthCount]
