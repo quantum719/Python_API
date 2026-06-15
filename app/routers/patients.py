@@ -6,7 +6,7 @@ from app.database import get_db
 from app import schemas, crud
 from sqlalchemy import func
 from app import models
-
+from math import ceil
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
@@ -18,9 +18,18 @@ def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)
         raise HTTPException(status_code=409, detail="A patient with this information already exists")
 
 
-@router.get("/", response_model=List[schemas.PatientResponse])
-def get_patients(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_patients(db=db, skip=skip, limit=limit)
+@router.get("/", response_model=schemas.PaginatedPatients)
+def get_patients(page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    total = db.query(models.Patient).count()
+    skip = (page - 1) * limit
+    patients = crud.get_patients(db=db, skip=skip, limit=limit)
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": ceil(total / limit) if total > 0 else 1,
+        "items": patients
+    }
 
 @router.get("/stats", response_model=schemas.PatientStats)
 def get_patient_stats(db: Session = Depends(get_db)):

@@ -54,3 +54,10 @@ class PatientStats(BaseModel):
     blood_group_counts: Dict[str, int]
     gender_counts: Dict[str, int]
     admissions_by_month: List[MonthCount]
+    
+class PaginatedPatients(BaseModel):
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    items: List[PatientResponse]

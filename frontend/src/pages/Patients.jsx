@@ -4,22 +4,25 @@ import { Link } from "react-router-dom"
 const API = "https://patients-db-api.onrender.com"
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 const STATUSES = ["Admitted", "Under Treatment", "Cured"]
+const PAGE_SIZE = 10
 
 export default function Patients() {
-  const [patients, setPatients] = useState([])
+  const [data, setData] = useState({ items: [], total: 0, total_pages: 1, page: 1 })
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [msg, setMsg] = useState(null)
 
-  const fetchPatients = async () => {
-    const res = await fetch(`${API}/patients/`)
-    const data = await res.json()
-    setPatients(data)
+  const fetchPatients = async (pageNum = page) => {
+    setLoading(true)
+    const res = await fetch(`${API}/patients/?page=${pageNum}&limit=${PAGE_SIZE}`)
+    const json = await res.json()
+    setData(json)
     setLoading(false)
   }
 
-  useEffect(() => { fetchPatients() }, [])
+  useEffect(() => { fetchPatients(page) }, [page])
 
   const flash = (text, type = "success") => {
     setMsg({ text, type })
@@ -29,13 +32,18 @@ export default function Patients() {
   const handleDelete = async (id) => {
     if (!confirm(`Delete patient #${id}?`)) return
     const res = await fetch(`${API}/patients/${id}`, { method: "DELETE" })
-    if (res.ok) { flash("Patient deleted"); fetchPatients() }
+    if (res.ok) { flash("Patient deleted"); fetchPatients(page) }
     else flash("Error deleting", "error")
   }
 
   const startEdit = (p) => {
     setEditId(p.id)
-    setEditForm({ name: p.name, age: p.age, gender: p.gender, phone_number: p.phone_number || "", address: p.address, blood_group: p.blood_group, diagnosis: p.diagnosis, admission_date: p.admission_date, status: p.status || "Admitted" })
+    setEditForm({
+      name: p.name, age: p.age, gender: p.gender,
+      phone_number: p.phone_number || "", address: p.address,
+      blood_group: p.blood_group, diagnosis: p.diagnosis,
+      admission_date: p.admission_date, status: p.status || "Admitted"
+    })
   }
 
   const handleUpdate = async () => {
@@ -44,8 +52,14 @@ export default function Patients() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...editForm, age: parseInt(editForm.age) })
     })
-    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients() }
+    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients(page) }
     else { const d = await res.json(); flash(d.detail || "Error", "error") }
+  }
+
+  const goToPage = (p) => {
+    if (p < 1 || p > data.total_pages) return
+    setPage(p)
+    setEditId(null)
   }
 
   const statusStyle = (status) => {
@@ -57,37 +71,35 @@ export default function Patients() {
     return { ...s.badge, ...(map[status] || { background: "#e9ecef", color: "#495057" }) }
   }
 
-  const s = {
-    wrap: { fontFamily: "'Segoe UI', sans-serif", maxWidth: "1300px", margin: "0 auto", padding: "2rem" },
-    h1: { fontSize: "1.8rem", fontWeight: "700", margin: 0 },
-    sub: { color: "#6c757d", fontSize: "14px", marginTop: "4px" },
-    header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" },
-    table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
-    th: { padding: "12px 14px", textAlign: "left", background: "#1a1a2e", color: "white", fontWeight: "500", whiteSpace: "nowrap" },
-    td: { padding: "10px 12px", borderBottom: "1px solid #f0f0f0", verticalAlign: "middle" },
-    tdEdit: { padding: "6px 8px", borderBottom: "1px solid #f0f0f0", background: "#f0f7ff" },
-    editInput: { width: "100%", padding: "5px 7px", border: "1px solid #b6d4fe", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" },
-    btnEdit: { padding: "5px 10px", background: "#0d6efd", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", marginRight: "4px" },
-    btnDel: { padding: "5px 10px", background: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
-    btnSave: { padding: "5px 10px", background: "#198754", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", marginRight: "4px" },
-    btnCancel: { padding: "5px 10px", background: "#6c757d", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
-    btnSecondary: { padding: "8px 16px", background: "#1a1a2e", color: "white", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "500", textDecoration: "none" },
-    success: { marginBottom: "1rem", padding: "10px", background: "#d1e7dd", color: "#0f5132", borderRadius: "6px", fontSize: "13px" },
-    error: { marginBottom: "1rem", padding: "10px", background: "#f8d7da", color: "#842029", borderRadius: "6px", fontSize: "13px" },
-    badge: { padding: "3px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "600", display: "inline-block", whiteSpace: "nowrap" },
-  }
-
   const ef = (field, type = "text") => (
     <input type={type} style={s.editInput} value={editForm[field] || ""}
       onChange={e => setEditForm({ ...editForm, [field]: e.target.value })} />
   )
+
+  const pageNumbers = () => {
+    const total = data.total_pages
+    const current = page
+    const pages = []
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i)
+    } else {
+      pages.push(1)
+      if (current > 3) pages.push("...")
+      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i)
+      if (current < total - 2) pages.push("...")
+      pages.push(total)
+    }
+    return pages
+  }
 
   return (
     <div style={s.wrap}>
       <div style={s.header}>
         <div>
           <h1 style={s.h1}>All Patients</h1>
-          <p style={s.sub}>View and manage patient records</p>
+          <p style={s.sub}>
+            {data.total} total · Page {data.page} of {data.total_pages}
+          </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <Link to="/add-patient" style={s.btnSecondary}>Add Patient</Link>
@@ -108,7 +120,7 @@ export default function Patients() {
               </tr>
             </thead>
             <tbody>
-              {patients.map(p => editId === p.id ? (
+              {data.items.map(p => editId === p.id ? (
                 <tr key={p.id}>
                   <td style={s.tdEdit}>{p.id}</td>
                   <td style={s.tdEdit}>{ef("name")}</td>
@@ -157,6 +169,50 @@ export default function Patients() {
           </table>
         )}
       </div>
+
+      <div style={s.pagination}>
+        <button style={s.pageBtn(page === 1)} onClick={() => goToPage(page - 1)} disabled={page === 1}>
+          ← Prev
+        </button>
+
+        {pageNumbers().map((p, i) =>
+          p === "..." ? (
+            <span key={`dots-${i}`} style={s.dots}>...</span>
+          ) : (
+            <button key={p} style={s.pageNumBtn(p === page)} onClick={() => goToPage(p)}>
+              {p}
+            </button>
+          )
+        )}
+
+        <button style={s.pageBtn(page === data.total_pages)} onClick={() => goToPage(page + 1)} disabled={page === data.total_pages}>
+          Next →
+        </button>
+      </div>
     </div>
   )
+}
+
+const s = {
+  wrap: { fontFamily: "'Segoe UI', sans-serif", maxWidth: "1300px", margin: "0 auto", padding: "2rem" },
+  h1: { fontSize: "1.8rem", fontWeight: "700", margin: 0 },
+  sub: { color: "#6c757d", fontSize: "14px", marginTop: "4px" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
+  th: { padding: "12px 14px", textAlign: "left", background: "#1a1a2e", color: "white", fontWeight: "500", whiteSpace: "nowrap" },
+  td: { padding: "10px 12px", borderBottom: "1px solid #f0f0f0", verticalAlign: "middle" },
+  tdEdit: { padding: "6px 8px", borderBottom: "1px solid #f0f0f0", background: "#f0f7ff" },
+  editInput: { width: "100%", padding: "5px 7px", border: "1px solid #b6d4fe", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" },
+  btnEdit: { padding: "5px 10px", background: "#0d6efd", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", marginRight: "4px" },
+  btnDel: { padding: "5px 10px", background: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
+  btnSave: { padding: "5px 10px", background: "#198754", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", marginRight: "4px" },
+  btnCancel: { padding: "5px 10px", background: "#6c757d", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
+  btnSecondary: { padding: "8px 16px", background: "#1a1a2e", color: "white", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "500", textDecoration: "none" },
+  success: { marginBottom: "1rem", padding: "10px", background: "#d1e7dd", color: "#0f5132", borderRadius: "6px", fontSize: "13px" },
+  error: { marginBottom: "1rem", padding: "10px", background: "#f8d7da", color: "#842029", borderRadius: "6px", fontSize: "13px" },
+  badge: { padding: "3px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "600", display: "inline-block", whiteSpace: "nowrap" },
+  pagination: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginTop: "1.5rem", flexWrap: "wrap" },
+  pageBtn: (disabled) => ({ padding: "7px 14px", background: disabled ? "#e9ecef" : "#1a1a2e", color: disabled ? "#adb5bd" : "white", border: "none", borderRadius: "6px", cursor: disabled ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: "500" }),
+  pageNumBtn: (active) => ({ padding: "7px 12px", background: active ? "#1a1a2e" : "white", color: active ? "white" : "#1a1a2e", border: "1px solid #dee2e6", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: active ? "700" : "400" }),
+  dots: { padding: "7px 4px", color: "#6c757d", fontSize: "13px" },
 }
