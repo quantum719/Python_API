@@ -9,20 +9,33 @@ const PAGE_SIZE = 10
 export default function Patients() {
   const [data, setData] = useState({ items: [], total: 0, total_pages: 1, page: 1 })
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [msg, setMsg] = useState(null)
 
-  const fetchPatients = async (pageNum = page) => {
+  // Wait 400ms after user stops typing before fetching
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => { fetchPatients(page, debouncedSearch) }, [page, debouncedSearch])
+
+  const fetchPatients = async (pageNum, searchTerm) => {
     setLoading(true)
-    const res = await fetch(`${API}/patients/?page=${pageNum}&limit=${PAGE_SIZE}`)
+    const params = new URLSearchParams({ page: pageNum, limit: PAGE_SIZE })
+    if (searchTerm) params.append("search", searchTerm)
+    const res = await fetch(`${API}/patients/?${params}`)
     const json = await res.json()
     setData(json)
     setLoading(false)
   }
-
-  useEffect(() => { fetchPatients(page) }, [page])
 
   const flash = (text, type = "success") => {
     setMsg({ text, type })
@@ -32,7 +45,7 @@ export default function Patients() {
   const handleDelete = async (id) => {
     if (!confirm(`Delete patient #${id}?`)) return
     const res = await fetch(`${API}/patients/${id}`, { method: "DELETE" })
-    if (res.ok) { flash("Patient deleted"); fetchPatients(page) }
+    if (res.ok) { flash("Patient deleted"); fetchPatients(page, debouncedSearch) }
     else flash("Error deleting", "error")
   }
 
@@ -52,7 +65,7 @@ export default function Patients() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...editForm, age: parseInt(editForm.age) })
     })
-    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients(page) }
+    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients(page, debouncedSearch) }
     else { const d = await res.json(); flash(d.detail || "Error", "error") }
   }
 
@@ -98,7 +111,7 @@ export default function Patients() {
         <div>
           <h1 style={s.h1}>All Patients</h1>
           <p style={s.sub}>
-            {data.total} total · Page {data.page} of {data.total_pages}
+            {data.total} {debouncedSearch ? `results for "${debouncedSearch}"` : "total"} · Page {page} of {data.total_pages}
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -107,10 +120,27 @@ export default function Patients() {
         </div>
       </div>
 
+      <div style={s.searchRow}>
+        <input
+          type="text"
+          placeholder="Search by name, diagnosis, address, blood group, status..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={s.searchInput}
+        />
+        {search && (
+          <button style={s.clearBtn} onClick={() => setSearch("")}>✕ Clear</button>
+        )}
+      </div>
+
       {msg && <div style={msg.type === "error" ? s.error : s.success}>{msg.text}</div>}
 
       <div style={{ overflowX: "auto" }}>
-        {loading ? <p>Loading...</p> : (
+        {loading ? <p>Loading...</p> : data.items.length === 0 ? (
+          <p style={{ color: "#6c757d", padding: "2rem 0" }}>
+            No patients found{debouncedSearch ? ` for "${debouncedSearch}"` : ""}.
+          </p>
+        ) : (
           <table style={s.table}>
             <thead>
               <tr>
@@ -170,25 +200,25 @@ export default function Patients() {
         )}
       </div>
 
-      <div style={s.pagination}>
-        <button style={s.pageBtn(page === 1)} onClick={() => goToPage(page - 1)} disabled={page === 1}>
-          ← Prev
-        </button>
-
-        {pageNumbers().map((p, i) =>
-          p === "..." ? (
-            <span key={`dots-${i}`} style={s.dots}>...</span>
-          ) : (
-            <button key={p} style={s.pageNumBtn(p === page)} onClick={() => goToPage(p)}>
-              {p}
-            </button>
-          )
-        )}
-
-        <button style={s.pageBtn(page === data.total_pages)} onClick={() => goToPage(page + 1)} disabled={page === data.total_pages}>
-          Next →
-        </button>
-      </div>
+      {data.total_pages > 1 && (
+        <div style={s.pagination}>
+          <button style={s.pageBtn(page === 1)} onClick={() => goToPage(page - 1)} disabled={page === 1}>
+            ← Prev
+          </button>
+          {pageNumbers().map((p, i) =>
+            p === "..." ? (
+              <span key={`dots-${i}`} style={s.dots}>...</span>
+            ) : (
+              <button key={p} style={s.pageNumBtn(p === page)} onClick={() => goToPage(p)}>
+                {p}
+              </button>
+            )
+          )}
+          <button style={s.pageBtn(page === data.total_pages)} onClick={() => goToPage(page + 1)} disabled={page === data.total_pages}>
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -197,7 +227,10 @@ const s = {
   wrap: { fontFamily: "'Segoe UI', sans-serif", maxWidth: "1300px", margin: "0 auto", padding: "2rem" },
   h1: { fontSize: "1.8rem", fontWeight: "700", margin: 0 },
   sub: { color: "#6c757d", fontSize: "14px", marginTop: "4px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" },
+  searchRow: { display: "flex", gap: "10px", alignItems: "center", marginBottom: "1.5rem" },
+  searchInput: { flex: 1, padding: "10px 14px", border: "1px solid #dee2e6", borderRadius: "8px", fontSize: "14px", outline: "none", boxSizing: "border-box" },
+  clearBtn: { padding: "10px 14px", background: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#495057", whiteSpace: "nowrap" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
   th: { padding: "12px 14px", textAlign: "left", background: "#1a1a2e", color: "white", fontWeight: "500", whiteSpace: "nowrap" },
   td: { padding: "10px 12px", borderBottom: "1px solid #f0f0f0", verticalAlign: "middle" },
