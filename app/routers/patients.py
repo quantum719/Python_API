@@ -20,10 +20,17 @@ def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)
 
 
 @router.get("/", response_model=schemas.PaginatedPatients)
-def get_patients(page: int = 1, limit: int = 10, search: Optional[str] = None, db: Session = Depends(get_db)):
+def get_patients(
+    page: int = 1,
+    limit: int = 10,
+    search: Optional[str] = None,
+    sort_by: str = "id",
+    sort_order: str = "asc",
+    db: Session = Depends(get_db)
+):
     total = crud.count_patients(db=db, search=search)
     skip = (page - 1) * limit
-    patients = crud.get_patients(db=db, skip=skip, limit=limit, search=search)
+    patients = crud.get_patients(db=db, skip=skip, limit=limit, search=search, sort_by=sort_by, sort_order=sort_order)
     return {
         "total": total,
         "page": page,

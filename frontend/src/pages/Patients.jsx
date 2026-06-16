@@ -6,17 +6,32 @@ const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 const STATUSES = ["Admitted", "Under Treatment", "Cured"]
 const PAGE_SIZE = 10
 
+const COLUMNS = [
+  { label: "ID",             key: "id" },
+  { label: "Name",           key: "name" },
+  { label: "Age",            key: "age" },
+  { label: "Gender",         key: "gender" },
+  { label: "Blood Group",    key: "blood_group" },
+  { label: "Status",         key: "status" },
+  { label: "Diagnosis",      key: "diagnosis" },
+  { label: "Phone",          key: "phone_number" },
+  { label: "Address",        key: "address" },
+  { label: "Admission Date", key: "admission_date" },
+  { label: "Actions",        key: null },
+]
+
 export default function Patients() {
   const [data, setData] = useState({ items: [], total: 0, total_pages: 1, page: 1 })
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [sortBy, setSortBy] = useState("id")
+  const [sortOrder, setSortOrder] = useState("asc")
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [msg, setMsg] = useState(null)
 
-  // Wait 400ms after user stops typing before fetching
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search)
@@ -25,16 +40,31 @@ export default function Patients() {
     return () => clearTimeout(timer)
   }, [search])
 
-  useEffect(() => { fetchPatients(page, debouncedSearch) }, [page, debouncedSearch])
+  useEffect(() => {
+    fetchPatients(page, debouncedSearch, sortBy, sortOrder)
+  }, [page, debouncedSearch, sortBy, sortOrder])
 
-  const fetchPatients = async (pageNum, searchTerm) => {
+  const fetchPatients = async (pageNum, searchTerm, sort, order) => {
     setLoading(true)
-    const params = new URLSearchParams({ page: pageNum, limit: PAGE_SIZE })
+    const params = new URLSearchParams({ page: pageNum, limit: PAGE_SIZE, sort_by: sort, sort_order: order })
     if (searchTerm) params.append("search", searchTerm)
     const res = await fetch(`${API}/patients/?${params}`)
     const json = await res.json()
     setData(json)
     setLoading(false)
+  }
+
+  const handleSort = (key) => {
+    if (!key) return // Actions column — not sortable
+    if (sortBy === key) {
+      // Same column: toggle direction
+      setSortOrder(prev => prev === "asc" ? "desc" : "asc")
+    } else {
+      // New column: sort ascending by default
+      setSortBy(key)
+      setSortOrder("asc")
+    }
+    setPage(1)
   }
 
   const flash = (text, type = "success") => {
@@ -45,7 +75,7 @@ export default function Patients() {
   const handleDelete = async (id) => {
     if (!confirm(`Delete patient #${id}?`)) return
     const res = await fetch(`${API}/patients/${id}`, { method: "DELETE" })
-    if (res.ok) { flash("Patient deleted"); fetchPatients(page, debouncedSearch) }
+    if (res.ok) { flash("Patient deleted"); fetchPatients(page, debouncedSearch, sortBy, sortOrder) }
     else flash("Error deleting", "error")
   }
 
@@ -65,7 +95,7 @@ export default function Patients() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...editForm, age: parseInt(editForm.age) })
     })
-    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients(page, debouncedSearch) }
+    if (res.ok) { flash("Patient updated"); setEditId(null); fetchPatients(page, debouncedSearch, sortBy, sortOrder) }
     else { const d = await res.json(); flash(d.detail || "Error", "error") }
   }
 
@@ -88,6 +118,11 @@ export default function Patients() {
     <input type={type} style={s.editInput} value={editForm[field] || ""}
       onChange={e => setEditForm({ ...editForm, [field]: e.target.value })} />
   )
+
+  const sortIcon = (key) => {
+    if (sortBy !== key) return <span style={s.sortIcon}>↕</span>
+    return <span style={{ ...s.sortIcon, color: "#fff", fontWeight: "700" }}>{sortOrder === "asc" ? "↑" : "↓"}</span>
+  }
 
   const pageNumbers = () => {
     const total = data.total_pages
@@ -112,6 +147,7 @@ export default function Patients() {
           <h1 style={s.h1}>All Patients</h1>
           <p style={s.sub}>
             {data.total} {debouncedSearch ? `results for "${debouncedSearch}"` : "total"} · Page {page} of {data.total_pages}
+            {" · "} Sorted by {COLUMNS.find(c => c.key === sortBy)?.label} ({sortOrder})
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
@@ -144,8 +180,14 @@ export default function Patients() {
           <table style={s.table}>
             <thead>
               <tr>
-                {["ID","Name","Age","Gender","Blood Group","Status","Diagnosis","Phone","Address","Admission Date","Actions"].map(h => (
-                  <th key={h} style={s.th}>{h}</th>
+                {COLUMNS.map(col => (
+                  <th
+                    key={col.label}
+                    style={col.key ? s.thSortable : s.th}
+                    onClick={() => handleSort(col.key)}
+                  >
+                    {col.label} {col.key && sortIcon(col.key)}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -233,6 +275,8 @@ const s = {
   clearBtn: { padding: "10px 14px", background: "#f8f9fa", border: "1px solid #dee2e6", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#495057", whiteSpace: "nowrap" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "13px" },
   th: { padding: "12px 14px", textAlign: "left", background: "#1a1a2e", color: "white", fontWeight: "500", whiteSpace: "nowrap" },
+  thSortable: { padding: "12px 14px", textAlign: "left", background: "#1a1a2e", color: "white", fontWeight: "500", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" },
+  sortIcon: { marginLeft: "6px", opacity: 0.5, fontSize: "11px" },
   td: { padding: "10px 12px", borderBottom: "1px solid #f0f0f0", verticalAlign: "middle" },
   tdEdit: { padding: "6px 8px", borderBottom: "1px solid #f0f0f0", background: "#f0f7ff" },
   editInput: { width: "100%", padding: "5px 7px", border: "1px solid #b6d4fe", borderRadius: "4px", fontSize: "12px", boxSizing: "border-box" },

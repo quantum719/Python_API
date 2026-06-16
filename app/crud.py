@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app import models
 from app import schemas
-from sqlalchemy import or_, cast, String
+from sqlalchemy import or_, cast, String, asc, desc
 
 def create_patient(db: Session, patient: schemas.PatientCreate):
     db_patient = models.Patient(
@@ -20,7 +20,7 @@ def create_patient(db: Session, patient: schemas.PatientCreate):
     db.refresh(db_patient)
     return db_patient
 
-def get_patients(db, skip=0, limit=10, search=None):
+def get_patients(db, skip=0, limit=10, search=None, sort_by="id", sort_order="asc"):
     query = db.query(models.Patient)
     if search:
         term = f"%{search}%"
@@ -36,6 +36,8 @@ def get_patients(db, skip=0, limit=10, search=None):
             cast(models.Patient.age, String).ilike(term),
             cast(models.Patient.id, String).ilike(term),
         ))
+    sort_column = getattr(models.Patient, sort_by, models.Patient.id)
+    query = query.order_by(desc(sort_column) if sort_order == "desc" else asc(sort_column))
     return query.offset(skip).limit(limit).all()
 
 def count_patients(db, search=None):
