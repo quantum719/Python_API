@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app import models
 from app import schemas
+from sqlalchemy import or_, cast, String
 
 def create_patient(db: Session, patient: schemas.PatientCreate):
     db_patient = models.Patient(
@@ -19,8 +20,41 @@ def create_patient(db: Session, patient: schemas.PatientCreate):
     db.refresh(db_patient)
     return db_patient
 
-def get_patients(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Patient).offset(skip).limit(limit).all()
+def get_patients(db, skip=0, limit=10, search=None):
+    query = db.query(models.Patient)
+    if search:
+        term = f"%{search}%"
+        query = query.filter(or_(
+            models.Patient.name.ilike(term),
+            models.Patient.gender.ilike(term),
+            models.Patient.phone_number.ilike(term),
+            models.Patient.address.ilike(term),
+            models.Patient.blood_group.ilike(term),
+            models.Patient.diagnosis.ilike(term),
+            models.Patient.admission_date.ilike(term),
+            models.Patient.status.ilike(term),
+            cast(models.Patient.age, String).ilike(term),
+            cast(models.Patient.id, String).ilike(term),
+        ))
+    return query.offset(skip).limit(limit).all()
+
+def count_patients(db, search=None):
+    query = db.query(models.Patient)
+    if search:
+        term = f"%{search}%"
+        query = query.filter(or_(
+            models.Patient.name.ilike(term),
+            models.Patient.gender.ilike(term),
+            models.Patient.phone_number.ilike(term),
+            models.Patient.address.ilike(term),
+            models.Patient.blood_group.ilike(term),
+            models.Patient.diagnosis.ilike(term),
+            models.Patient.admission_date.ilike(term),
+            models.Patient.status.ilike(term),
+            cast(models.Patient.age, String).ilike(term),
+            cast(models.Patient.id, String).ilike(term),
+        ))
+    return query.count()
 
 def get_patient(db: Session, patient_id: int):
     return db.query(models.Patient).filter(models.Patient.id == patient_id).first()

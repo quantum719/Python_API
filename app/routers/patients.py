@@ -7,6 +7,7 @@ from app import schemas, crud
 from sqlalchemy import func
 from app import models
 from math import ceil
+from typing import Optional, List
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
@@ -19,10 +20,10 @@ def create_patient(patient: schemas.PatientCreate, db: Session = Depends(get_db)
 
 
 @router.get("/", response_model=schemas.PaginatedPatients)
-def get_patients(page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
-    total = db.query(models.Patient).count()
+def get_patients(page: int = 1, limit: int = 10, search: Optional[str] = None, db: Session = Depends(get_db)):
+    total = crud.count_patients(db=db, search=search)
     skip = (page - 1) * limit
-    patients = crud.get_patients(db=db, skip=skip, limit=limit)
+    patients = crud.get_patients(db=db, skip=skip, limit=limit, search=search)
     return {
         "total": total,
         "page": page,
